@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test and debug scripts
+test_*.py
+debug_*.py
+verify_*.py
+analyze_*.py
+simple_*.py
+check_*.py
+fetch_history*.py
+convert_*.py
+replace_*.py
+identify_*.py
+diagnose_*.py
+
+# Data files (keep portfolio_history.csv)
+static_price_history*.csv
+core_select_equity_level_data.csv
+mstr_price_data.csv
+pltr_price_data.csv
+*.xlsx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated reports
+daily_report_*.html
+portfolio_report_*.html
+sector_cache.json
