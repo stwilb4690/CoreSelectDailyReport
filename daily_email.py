@@ -291,25 +291,28 @@ def generate_html_email(results, report_date):
     return html
 
 def send_email(subject, html_content):
-    """Send email via Gmail"""
+    """Send email via Gmail to multiple recipients"""
 
     # Load environment variables
     load_dotenv()
 
     sender = os.getenv('EMAIL_SENDER')
     password = os.getenv('EMAIL_PASSWORD')
-    receiver = os.getenv('EMAIL_RECEIVER')
+    receivers_str = os.getenv('EMAIL_RECEIVER')
 
-    if not all([sender, password, receiver]):
+    if not all([sender, password, receivers_str]):
         print("\n[ERROR] Email credentials not configured!")
         print("Create .env file with EMAIL_SENDER, EMAIL_PASSWORD, and EMAIL_RECEIVER")
         return False
+
+    # Parse comma-separated receivers
+    receivers = [email.strip() for email in receivers_str.split(',')]
 
     # Create message
     msg = MIMEMultipart('alternative')
     msg['Subject'] = subject
     msg['From'] = sender
-    msg['To'] = receiver
+    msg['To'] = ', '.join(receivers)  # Display all recipients in header
 
     html_part = MIMEText(html_content, 'html')
     msg.attach(html_part)
@@ -318,9 +321,11 @@ def send_email(subject, html_content):
         # Send via Gmail
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
             server.login(sender, password)
-            server.sendmail(sender, receiver, msg.as_string())
+            server.sendmail(sender, receivers, msg.as_string())  # Send to list of recipients
 
-        print(f"\n✅ Email sent successfully to {receiver}")
+        print(f"\n✅ Email sent successfully to {len(receivers)} recipient(s):")
+        for receiver in receivers:
+            print(f"   - {receiver}")
         return True
 
     except Exception as e:
