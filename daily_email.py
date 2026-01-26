@@ -1,17 +1,10 @@
 """
 Daily Portfolio Performance Email Report
 
-Sends a concise daily email showing:
-- Today's portfolio return
-- Top/Bottom movers
-- Sector allocation vs S&P 500
-
-Setup:
-1. pip install python-dotenv yfinance
-2. Create .env file with:
-   EMAIL_SENDER=your.email@gmail.com
-   EMAIL_PASSWORD=your-app-password
-   EMAIL_RECEIVER=recipient@email.com
+Matches the dashboard design with:
+- Today's performance with S&P 500 comparison
+- Top/Bottom 5 performers
+- Period performance table
 """
 
 import pandas as pd
@@ -22,53 +15,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
 import os
-import json
-from pathlib import Path
-
-# S&P 500 sector benchmark
-SP500_SECTORS = {
-    'Technology': 0.31,
-    'Financials': 0.13,
-    'Healthcare': 0.12,
-    'Consumer Cyclical': 0.10,
-    'Communication Services': 0.09,
-    'Industrials': 0.08,
-    'Consumer Defensive': 0.06,
-    'Energy': 0.04,
-    'Utilities': 0.02,
-    'Real Estate': 0.02,
-    'Basic Materials': 0.02
-}
-
-# Sector cache file
-CACHE_FILE = 'sector_cache.json'
-
-def load_sector_cache():
-    """Load cached sector data"""
-    if Path(CACHE_FILE).exists():
-        with open(CACHE_FILE, 'r') as f:
-            return json.load(f)
-    return {}
-
-def save_sector_cache(cache):
-    """Save sector data to cache"""
-    with open(CACHE_FILE, 'w') as f:
-        json.dump(cache, f, indent=2)
-
-def get_sector(ticker, cache):
-    """Get sector for a ticker (with caching)"""
-    if ticker in cache:
-        return cache[ticker]
-
-    try:
-        stock = yf.Ticker(ticker)
-        info = stock.info
-        sector = info.get('sector', 'Unknown')
-        cache[ticker] = sector
-        return sector
-    except:
-        cache[ticker] = 'Unknown'
-        return 'Unknown'
 
 def load_current_portfolio():
     """Load current portfolio holdings from most recent date"""
@@ -93,11 +39,9 @@ def fetch_daily_returns(tickers):
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            # Get last 5 days to ensure we have data
             hist = stock.history(period='5d')
 
             if len(hist) >= 2:
-                # Get today's and yesterday's close
                 today_close = hist['Close'].iloc[-1]
                 yesterday_close = hist['Close'].iloc[-2]
                 daily_return = ((today_close - yesterday_close) / yesterday_close) * 100
@@ -108,7 +52,6 @@ def fetch_daily_returns(tickers):
                     'Close': today_close
                 })
             else:
-                print(f"  Warning: Insufficient data for {ticker}")
                 returns_data.append({
                     'Ticker': ticker,
                     'Daily_Return': 0.0,
@@ -124,7 +67,23 @@ def fetch_daily_returns(tickers):
 
     return pd.DataFrame(returns_data)
 
-def analyze_portfolio(portfolio, daily_returns, sector_cache):
+def fetch_spy_return():
+    """Fetch S&P 500 daily return"""
+    try:
+        sp500tr = yf.Ticker('^SP500TR')
+        today = pd.Timestamp.now().normalize()
+        tomorrow = today + pd.Timedelta(days=1)
+        hist = sp500tr.history(start=today - pd.Timedelta(days=5), end=tomorrow)
+
+        if len(hist) >= 2:
+            today_close = hist['Close'].iloc[-1]
+            yesterday_close = hist['Close'].iloc[-2]
+            return ((today_close - yesterday_close) / yesterday_close) * 100
+    except:
+        pass
+    return 0.0
+
+def analyze_portfolio(portfolio, daily_returns):
     """Analyze portfolio performance"""
 
     # Merge portfolio with returns
@@ -133,81 +92,81 @@ def analyze_portfolio(portfolio, daily_returns, sector_cache):
     # Calculate daily contribution
     analysis['Daily_Contribution'] = analysis['Weight'] * (analysis['Daily_Return'] / 100)
 
-    # Get sectors
-    analysis['Sector'] = analysis['Ticker'].apply(lambda t: get_sector(t, sector_cache))
-
     # Calculate total portfolio return
     total_return = analysis['Daily_Contribution'].sum() * 100
 
-    # Top/Bottom movers
-    top_3 = analysis.nlargest(3, 'Daily_Contribution')[['Ticker', 'Weight', 'Daily_Return', 'Daily_Contribution']]
-    bottom_3 = analysis.nsmallest(3, 'Daily_Contribution')[['Ticker', 'Weight', 'Daily_Return', 'Daily_Contribution']]
+    # Get SPY return and outperformance
+    spy_return = fetch_spy_return()
+    outperformance = total_return - spy_return
 
-    # Sector allocation
-    sector_alloc = analysis.groupby('Sector')['Weight'].sum().to_dict()
-
-    # Sector over/underweights vs S&P 500
-    sector_diff = {}
-    for sector in set(list(SP500_SECTORS.keys()) + list(sector_alloc.keys())):
-        portfolio_weight = sector_alloc.get(sector, 0)
-        sp500_weight = SP500_SECTORS.get(sector, 0)
-        sector_diff[sector] = portfolio_weight - sp500_weight
-
-    # Top 3 overweights/underweights
-    sorted_sectors = sorted(sector_diff.items(), key=lambda x: abs(x[1]), reverse=True)[:3]
+    # Top/Bottom 5 by daily return percentage
+    top_5 = analysis.nlargest(5, 'Daily_Return')[['Ticker', 'Weight', 'Daily_Return']]
+    bottom_5 = analysis.nsmallest(5, 'Daily_Return')[['Ticker', 'Weight', 'Daily_Return']]
 
     return {
         'total_return': total_return,
-        'top_3': top_3,
-        'bottom_3': bottom_3,
-        'sector_diff': sorted_sectors,
+        'spy_return': spy_return,
+        'outperformance': outperformance,
+        'top_5': top_5,
+        'bottom_5': bottom_5,
         'analysis_df': analysis
     }
 
 def generate_html_email(results, report_date):
-    """Generate HTML email body"""
+    """Generate HTML email matching dashboard design"""
 
     total_return = results['total_return']
-    top_3 = results['top_3']
-    bottom_3 = results['bottom_3']
-    sector_diff = results['sector_diff']
+    spy_return = results['spy_return']
+    outperformance = results['outperformance']
+    top_5 = results['top_5']
+    bottom_5 = results['bottom_5']
 
-    # Color for total return
-    return_color = '#10b981' if total_return >= 0 else '#ef4444'
+    # Formatting
     return_sign = '+' if total_return >= 0 else ''
+    spy_sign = '+' if spy_return >= 0 else ''
+    outperf_sign = '+' if outperformance >= 0 else ''
+    outperf_color = '#10b981' if outperformance >= 0 else '#ef4444'
 
-    # Generate top movers table
+    # Generate Top 5 Performers table with visual bars
     top_rows = ""
-    for _, row in top_3.iterrows():
+    for _, row in top_5.iterrows():
+        # Calculate bar width (scale to max 100%)
+        bar_width = min(abs(row['Daily_Return']) * 10, 100)
+        bar_color = '#10b981' if row['Daily_Return'] >= 0 else '#ef4444'
+
         top_rows += f"""
-        <tr style="background-color: #f0fdf4;">
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">{row['Ticker']}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">{row['Weight']*100:.1f}%</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #10b981; font-weight: bold;">{row['Daily_Return']:+.2f}%</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #10b981; font-weight: bold;">{row['Daily_Contribution']*100:+.2f}%</td>
-        </tr>
-        """
-
-    bottom_rows = ""
-    for _, row in bottom_3.iterrows():
-        bottom_rows += f"""
-        <tr style="background-color: #fef2f2;">
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">{row['Ticker']}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">{row['Weight']*100:.1f}%</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #ef4444; font-weight: bold;">{row['Daily_Return']:+.2f}%</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #ef4444; font-weight: bold;">{row['Daily_Contribution']*100:+.2f}%</td>
-        </tr>
-        """
-
-    # Generate sector comparison
-    sector_rows = ""
-    for sector, diff in sector_diff:
-        color = '#10b981' if diff > 0 else '#ef4444' if diff < 0 else '#6b7280'
-        sign = '+' if diff > 0 else ''
-        sector_rows += f"""
         <tr>
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">{sector}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: {color}; font-weight: bold;">{sign}{diff*100:.1f}%</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{row['Ticker']}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{row['Weight']*100:.1f}%</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="flex: 1; height: 24px; background: #f3f4f6; border-radius: 4px; overflow: hidden; position: relative;">
+                        <div style="height: 100%; background: {bar_color}; width: {bar_width}%;"></div>
+                    </div>
+                    <span style="min-width: 60px; text-align: right; font-weight: 600; color: {bar_color};">{row['Daily_Return']:+.2f}%</span>
+                </div>
+            </td>
+        </tr>
+        """
+
+    # Generate Bottom 5 Performers table with visual bars
+    bottom_rows = ""
+    for _, row in bottom_5.iterrows():
+        bar_width = min(abs(row['Daily_Return']) * 10, 100)
+        bar_color = '#ef4444'
+
+        bottom_rows += f"""
+        <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{row['Ticker']}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{row['Weight']*100:.1f}%</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="flex: 1; height: 24px; background: #f3f4f6; border-radius: 4px; overflow: hidden; position: relative;">
+                        <div style="height: 100%; background: {bar_color}; width: {bar_width}%;"></div>
+                    </div>
+                    <span style="min-width: 60px; text-align: right; font-weight: 600; color: {bar_color};">{row['Daily_Return']:+.2f}%</span>
+                </div>
+            </td>
         </tr>
         """
 
@@ -215,71 +174,91 @@ def generate_html_email(results, report_date):
     <!DOCTYPE html>
     <html>
     <head>
+        <meta charset="UTF-8">
         <style>
-            body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f7fa; }}
-            .container {{ max-width: 800px; margin: 0 auto; padding: 20px; }}
-            .header {{ background-color: #1f2937; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
-            .header h1 {{ margin: 0; font-size: 28px; }}
-            .summary {{ background-color: white; padding: 30px; text-align: center; border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; }}
-            .summary h2 {{ margin: 0 0 10px 0; font-size: 48px; color: {return_color}; }}
-            .summary p {{ margin: 0; color: #6b7280; font-size: 14px; }}
-            .section {{ background-color: white; padding: 30px; margin-top: 2px; border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; }}
-            .section h3 {{ margin: 0 0 20px 0; color: #1f2937; font-size: 20px; }}
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f7fa; }}
+            .container {{ max-width: 1200px; margin: 0 auto; padding: 20px; }}
+            .header {{ text-align: center; padding: 30px 0 20px 0; }}
+            .header h1 {{ margin: 0; font-size: 32px; color: #1f2937; }}
+            .header .date {{ color: #6b7280; font-size: 14px; margin-top: 8px; }}
+
+            .performance-box {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; border-radius: 15px; text-align: center; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+            .performance-box .label {{ color: white; font-size: 14px; font-weight: 600; letter-spacing: 1px; margin: 0; }}
+            .performance-box .value {{ color: white; font-size: 56px; font-weight: bold; margin: 10px 0; }}
+            .performance-box .subdate {{ color: rgba(255,255,255,0.9); font-size: 14px; margin: 0; }}
+            .performance-box .metrics {{ display: flex; justify-content: center; gap: 60px; margin-top: 20px; }}
+            .performance-box .metric {{ text-align: center; }}
+            .performance-box .metric-label {{ color: rgba(255,255,255,0.7); font-size: 11px; text-transform: uppercase; margin: 0; }}
+            .performance-box .metric-value {{ color: white; font-size: 24px; font-weight: bold; margin: 5px 0 0 0; }}
+
+            .section {{ background: white; padding: 30px; margin-bottom: 20px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+            .section h2 {{ margin: 0 0 20px 0; font-size: 18px; color: #1f2937; display: flex; align-items: center; gap: 8px; }}
+            .section h2 .icon {{ font-size: 20px; }}
+
+            .tables-container {{ display: flex; gap: 20px; margin-bottom: 20px; }}
+            .table-wrapper {{ flex: 1; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+
             table {{ width: 100%; border-collapse: collapse; }}
-            th {{ background-color: #f3f4f6; padding: 12px; text-align: left; font-weight: 600; border-bottom: 2px solid #e5e7eb; }}
-            .footer {{ background-color: white; padding: 20px; text-align: center; color: #6b7280; font-size: 12px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; }}
+            th {{ background-color: #f3f4f6; padding: 12px; text-align: left; font-weight: 600; border-bottom: 2px solid #e5e7eb; font-size: 12px; color: #6b7280; text-transform: uppercase; }}
+
+            .footer {{ text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }}
         </style>
     </head>
     <body>
         <div class="container">
+            <!-- Header -->
             <div class="header">
-                <h1>📊 Daily Portfolio Report</h1>
-                <p style="margin: 10px 0 0 0; font-size: 16px;">{report_date.strftime('%A, %B %d, %Y')}</p>
+                <h1>📊 Core Select Equity Performance</h1>
+                <div class="date">As of Market Close: <strong>{report_date.strftime('%B %d, %Y')}</strong></div>
             </div>
 
-            <div class="summary">
-                <p style="font-size: 14px; font-weight: 600; margin-bottom: 5px;">TOTAL PORTFOLIO RETURN</p>
-                <h2>{return_sign}{total_return:.2f}%</h2>
-                <p>vs. Previous Close</p>
+            <!-- Today's Performance -->
+            <div class="performance-box">
+                <p class="label">TODAY'S PERFORMANCE</p>
+                <h1 class="value">{return_sign}{total_return:.2f}%</h1>
+                <p class="subdate">{report_date.strftime('%A, %B %d, %Y')}</p>
+                <div class="metrics">
+                    <div class="metric">
+                        <p class="metric-label">S&P 500 TR</p>
+                        <p class="metric-value">{spy_sign}{spy_return:.2f}%</p>
+                    </div>
+                    <div class="metric">
+                        <p class="metric-label">Outperformance</p>
+                        <p class="metric-value" style="color: {outperf_color};">{outperf_sign}{outperformance:.2f}%</p>
+                    </div>
+                </div>
             </div>
 
-            <div class="section">
-                <h3>🟢 Top 3 Contributors</h3>
-                <table>
-                    <tr>
-                        <th>Ticker</th>
-                        <th>Weight</th>
-                        <th>Daily Return</th>
-                        <th>Contribution</th>
-                    </tr>
-                    {top_rows}
-                </table>
+            <!-- Top/Bottom Performers -->
+            <div class="tables-container">
+                <!-- Top 5 Performers -->
+                <div class="table-wrapper">
+                    <h2><span class="icon">🟢</span> Top 5 Performers</h2>
+                    <table>
+                        <tr>
+                            <th>Ticker</th>
+                            <th style="text-align: right;">Weight</th>
+                            <th>Daily Return</th>
+                        </tr>
+                        {top_rows}
+                    </table>
+                </div>
+
+                <!-- Bottom 5 Performers -->
+                <div class="table-wrapper">
+                    <h2><span class="icon">🔴</span> Bottom 5 Performers</h2>
+                    <table>
+                        <tr>
+                            <th>Ticker</th>
+                            <th style="text-align: right;">Weight</th>
+                            <th>Daily Return</th>
+                        </tr>
+                        {bottom_rows}
+                    </table>
+                </div>
             </div>
 
-            <div class="section" style="margin-top: 2px;">
-                <h3>🔴 Bottom 3 Detractors</h3>
-                <table>
-                    <tr>
-                        <th>Ticker</th>
-                        <th>Weight</th>
-                        <th>Daily Return</th>
-                        <th>Contribution</th>
-                    </tr>
-                    {bottom_rows}
-                </table>
-            </div>
-
-            <div class="section" style="margin-top: 2px;">
-                <h3>📈 Top 3 Sector Differences vs S&P 500</h3>
-                <table>
-                    <tr>
-                        <th>Sector</th>
-                        <th>Over/Under Weight</th>
-                    </tr>
-                    {sector_rows}
-                </table>
-            </div>
-
+            <!-- Footer -->
             <div class="footer">
                 Generated on {datetime.now().strftime('%Y-%m-%d at %I:%M %p ET')} | Core Select Equity
             </div>
@@ -312,7 +291,7 @@ def send_email(subject, html_content):
     msg = MIMEMultipart('alternative')
     msg['Subject'] = subject
     msg['From'] = sender
-    msg['To'] = ', '.join(receivers)  # Display all recipients in header
+    msg['To'] = ', '.join(receivers)
 
     html_part = MIMEText(html_content, 'html')
     msg.attach(html_part)
@@ -321,15 +300,15 @@ def send_email(subject, html_content):
         # Send via Gmail
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
             server.login(sender, password)
-            server.sendmail(sender, receivers, msg.as_string())  # Send to list of recipients
+            server.sendmail(sender, receivers, msg.as_string())
 
-        print(f"\n✅ Email sent successfully to {len(receivers)} recipient(s):")
+        print(f"\n[OK] Email sent successfully to {len(receivers)} recipient(s):")
         for receiver in receivers:
             print(f"   - {receiver}")
         return True
 
     except Exception as e:
-        print(f"\n❌ Failed to send email: {e}")
+        print(f"\n[ERROR] Failed to send email: {e}")
         return False
 
 def main():
@@ -338,10 +317,6 @@ def main():
     print("Daily Portfolio Email Report")
     print("="*80)
     print(f"Run time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-
-    # Load sector cache
-    sector_cache = load_sector_cache()
-    print(f"Loaded sector cache: {len(sector_cache)} tickers\n")
 
     # Load current portfolio
     portfolio = load_current_portfolio()
@@ -353,12 +328,10 @@ def main():
 
     # Analyze portfolio
     print("Analyzing portfolio performance...")
-    results = analyze_portfolio(portfolio, daily_returns, sector_cache)
-    print(f"Total Portfolio Return: {results['total_return']:+.2f}%\n")
-
-    # Save updated sector cache
-    save_sector_cache(sector_cache)
-    print(f"Updated sector cache: {len(sector_cache)} tickers\n")
+    results = analyze_portfolio(portfolio, daily_returns)
+    print(f"Total Portfolio Return: {results['total_return']:+.2f}%")
+    print(f"S&P 500 TR: {results['spy_return']:+.2f}%")
+    print(f"Outperformance: {results['outperformance']:+.2f}%\n")
 
     # Generate email
     report_date = datetime.now()
@@ -366,13 +339,13 @@ def main():
 
     # Create subject line
     return_sign = '+' if results['total_return'] >= 0 else ''
-    subject = f"Daily Portfolio Report - {report_date.strftime('%b %d')} - {return_sign}{results['total_return']:.2f}%"
+    subject = f"Core Select Daily Report - {report_date.strftime('%b %d')} - {return_sign}{results['total_return']:.2f}%"
 
     # Save HTML file
     filename = f"daily_report_{report_date.strftime('%Y%m%d')}.html"
     with open(filename, 'w', encoding='utf-8') as f:
         f.write(html_content)
-    print(f"✅ Report saved: {filename}")
+    print(f"[OK] Report saved: {filename}")
 
     # Send email
     send_email(subject, html_content)
