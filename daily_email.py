@@ -15,6 +15,72 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
 import os
+import numpy as np
+
+def load_portfolio_history():
+    """Load full portfolio history and build portfolio index"""
+    df = pd.read_csv('portfolio_history.csv')
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.sort_values('Date')
+
+    print(f"Portfolio history: {len(df['Date'].unique())} dates")
+    print(f"Date range: {df['Date'].min().strftime('%Y-%m-%d')} to {df['Date'].max().strftime('%Y-%m-%d')}")
+
+    # Get unique dates
+    dates = sorted(df['Date'].unique())
+
+    # Fetch all tickers and their price history
+    all_tickers = df['Ticker'].unique().tolist()
+    print(f"Fetching price history for {len(all_tickers)} tickers...")
+
+    start_date = df['Date'].min()
+    today = pd.Timestamp.now().normalize()
+    tomorrow = today + pd.Timedelta(days=1)
+
+    # Fetch all price data
+    price_data = {}
+    for ticker in all_tickers:
+        try:
+            stock = yf.Ticker(ticker)
+            hist = stock.history(start=start_date, end=tomorrow)
+            if not hist.empty:
+                hist = hist.reset_index()
+                hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None)
+                price_data[ticker] = hist[['Date', 'Close']].set_index('Date')
+        except Exception as e:
+            print(f"  Error fetching {ticker}: {e}")
+
+    # Build portfolio index
+    portfolio_values = []
+    for date in dates:
+        holdings = df[df['Date'] == date]
+        total_value = 0
+
+        for _, row in holdings.iterrows():
+            ticker = row['Ticker']
+            weight = row['Weight']
+
+            if ticker in price_data:
+                prices = price_data[ticker]
+                closest_price = prices[prices.index <= date]
+                if not closest_price.empty:
+                    price = closest_price['Close'].iloc[-1]
+                    total_value += weight * price
+
+        portfolio_values.append({
+            'Date': date,
+            'Portfolio_Value': total_value
+        })
+
+    portfolio_df = pd.DataFrame(portfolio_values)
+
+    # Normalize to index starting at 100
+    if not portfolio_df.empty and portfolio_df['Portfolio_Value'].iloc[0] > 0:
+        portfolio_df['Portfolio_Index'] = (portfolio_df['Portfolio_Value'] / portfolio_df['Portfolio_Value'].iloc[0]) * 100
+    else:
+        portfolio_df['Portfolio_Index'] = 100
+
+    return portfolio_df, df
 
 def load_current_portfolio():
     """Load current portfolio holdings from most recent date"""
@@ -25,8 +91,7 @@ def load_current_portfolio():
     latest_date = df['Date'].max()
     current = df[df['Date'] == latest_date].copy()
 
-    print(f"Portfolio as of: {latest_date.strftime('%Y-%m-%d')}")
-    print(f"Holdings: {len(current)} positions")
+    print(f"Current holdings: {len(current)} positions")
 
     return current
 
@@ -67,6 +132,27 @@ def fetch_daily_returns(tickers):
 
     return pd.DataFrame(returns_data)
 
+def fetch_spy_data(start_date, end_date):
+    """Fetch S&P 500 TR historical data"""
+    try:
+        sp500tr = yf.Ticker('^SP500TR')
+        hist = sp500tr.history(start=start_date, end=end_date)
+
+        if not hist.empty:
+            hist = hist.reset_index()
+            hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None)
+            df = pd.DataFrame({
+                'Date': hist['Date'],
+                'SPY_Close': hist['Close']
+            })
+            # Normalize to index starting at 100
+            df['SPY_Index'] = (df['SPY_Close'] / df['SPY_Close'].iloc[0]) * 100
+            return df
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"  Error fetching S&P 500 data: {e}")
+        return pd.DataFrame()
+
 def fetch_spy_return():
     """Fetch S&P 500 daily return"""
     try:
@@ -83,7 +169,72 @@ def fetch_spy_return():
         pass
     return 0.0
 
-def analyze_portfolio(portfolio, daily_returns):
+def calculate_period_return(df, days, value_col='Portfolio_Index', annualize=False):
+    """Calculate return for a specific period"""
+    if len(df) < 2:
+        return None
+
+    # Get the most recent value
+    current_value = df[value_col].iloc[-1]
+
+    # Get value from 'days' ago
+    target_date = df['Date'].iloc[-1] - timedelta(days=days)
+    past_data = df[df['Date'] <= target_date]
+
+    if len(past_data) == 0:
+        return None
+
+    past_value = past_data[value_col].iloc[-1]
+
+    # Calculate total return
+    total_return = ((current_value - past_value) / past_value)
+
+    # Annualize if requested and period is > 1 year
+    if annualize and days >= 365:
+        years = days / 365.25
+        annualized_return = (np.power(1 + total_return, 1/years) - 1) * 100
+        return annualized_return
+    else:
+        return total_return * 100
+
+def calculate_qtd_return(df, value_col='Portfolio_Index'):
+    """Calculate quarter-to-date return"""
+    if len(df) < 2:
+        return None
+
+    current_date = df['Date'].iloc[-1]
+    current_value = df[value_col].iloc[-1]
+
+    # Get start of current quarter
+    current_quarter = (current_date.month - 1) // 3 + 1
+    quarter_start = datetime(current_date.year, (current_quarter - 1) * 3 + 1, 1)
+
+    past_data = df[df['Date'] <= quarter_start]
+    if len(past_data) == 0:
+        return None
+
+    past_value = past_data[value_col].iloc[-1]
+    return ((current_value - past_value) / past_value) * 100
+
+def calculate_ytd_return(df, value_col='Portfolio_Index'):
+    """Calculate year-to-date return"""
+    if len(df) < 2:
+        return None
+
+    current_date = df['Date'].iloc[-1]
+    current_value = df[value_col].iloc[-1]
+
+    # Get start of current year
+    year_start = datetime(current_date.year, 1, 1)
+
+    past_data = df[df['Date'] <= year_start]
+    if len(past_data) == 0:
+        return None
+
+    past_value = past_data[value_col].iloc[-1]
+    return ((current_value - past_value) / past_value) * 100
+
+def analyze_portfolio(portfolio, daily_returns, portfolio_df, spy_df):
     """Analyze portfolio performance"""
 
     # Merge portfolio with returns
@@ -103,16 +254,41 @@ def analyze_portfolio(portfolio, daily_returns):
     top_5 = analysis.nlargest(5, 'Daily_Return')[['Ticker', 'Weight', 'Daily_Return']]
     bottom_5 = analysis.nsmallest(5, 'Daily_Return')[['Ticker', 'Weight', 'Daily_Return']]
 
+    # Calculate period metrics
+    portfolio_metrics = {
+        '1W': calculate_period_return(portfolio_df, 7),
+        '1M': calculate_period_return(portfolio_df, 30),
+        'QTD': calculate_qtd_return(portfolio_df),
+        'YTD': calculate_ytd_return(portfolio_df),
+        '1Y': calculate_period_return(portfolio_df, 365),
+        '3Y': calculate_period_return(portfolio_df, 365 * 3, annualize=True),
+        '5Y': calculate_period_return(portfolio_df, 365 * 5, annualize=True),
+    }
+
+    spy_metrics = {}
+    if not spy_df.empty:
+        spy_metrics = {
+            '1W': calculate_period_return(spy_df, 7, 'SPY_Index'),
+            '1M': calculate_period_return(spy_df, 30, 'SPY_Index'),
+            'QTD': calculate_qtd_return(spy_df, 'SPY_Index'),
+            'YTD': calculate_ytd_return(spy_df, 'SPY_Index'),
+            '1Y': calculate_period_return(spy_df, 365, 'SPY_Index'),
+            '3Y': calculate_period_return(spy_df, 365 * 3, 'SPY_Index', annualize=True),
+            '5Y': calculate_period_return(spy_df, 365 * 5, 'SPY_Index', annualize=True),
+        }
+
     return {
         'total_return': total_return,
         'spy_return': spy_return,
         'outperformance': outperformance,
         'top_5': top_5,
         'bottom_5': bottom_5,
-        'analysis_df': analysis
+        'analysis_df': analysis,
+        'portfolio_metrics': portfolio_metrics,
+        'spy_metrics': spy_metrics
     }
 
-def generate_html_email(results, report_date):
+def generate_html_email(results, report_date, current_portfolio):
     """Generate HTML email matching dashboard design"""
 
     total_return = results['total_return']
@@ -120,6 +296,8 @@ def generate_html_email(results, report_date):
     outperformance = results['outperformance']
     top_5 = results['top_5']
     bottom_5 = results['bottom_5']
+    portfolio_metrics = results['portfolio_metrics']
+    spy_metrics = results['spy_metrics']
 
     # Formatting
     return_sign = '+' if total_return >= 0 else ''
@@ -167,6 +345,46 @@ def generate_html_email(results, report_date):
                     <span style="min-width: 60px; text-align: right; font-weight: 600; color: {bar_color};">{row['Daily_Return']:+.2f}%</span>
                 </div>
             </td>
+        </tr>
+        """
+
+    # Generate Period Performance table
+    period_labels = {
+        '1W': '1W',
+        '1M': '1M',
+        'QTD': 'QTD',
+        'YTD': 'YTD',
+        '1Y': '1Y',
+        '3Y': '3Y Ann.',
+        '5Y': '5Y Ann.'
+    }
+
+    period_rows = ""
+    for period in ['1W', '1M', 'QTD', 'YTD', '1Y', '3Y', '5Y']:
+        portfolio_return = portfolio_metrics.get(period)
+        spy_return_val = spy_metrics.get(period)
+
+        if portfolio_return is not None and spy_return_val is not None:
+            diff = portfolio_return - spy_return_val
+            diff_color = '#10b981' if diff >= 0 else '#ef4444'
+            diff_sign = '+' if diff >= 0 else ''
+
+            period_rows += f"""
+            <tr>
+                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{period_labels[period]}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{portfolio_return:+.2f}%</td>
+                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{spy_return_val:+.2f}%</td>
+                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: {diff_color};">{diff_sign}{diff:.2f}%</td>
+            </tr>
+            """
+
+    # Generate Current Holdings table
+    holdings_rows = ""
+    for _, row in current_portfolio.sort_values('Weight', ascending=False).iterrows():
+        holdings_rows += f"""
+        <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{row['Ticker']}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{row['Weight']*100:.1f}%</td>
         </tr>
         """
 
@@ -258,6 +476,32 @@ def generate_html_email(results, report_date):
                 </div>
             </div>
 
+            <!-- Period Performance -->
+            <div class="section">
+                <h2><span class="icon">📈</span> Period Performance</h2>
+                <table>
+                    <tr>
+                        <th>Period</th>
+                        <th style="text-align: right;">Portfolio</th>
+                        <th style="text-align: right;">S&P 500 TR</th>
+                        <th style="text-align: right;">Difference</th>
+                    </tr>
+                    {period_rows}
+                </table>
+            </div>
+
+            <!-- Current Holdings -->
+            <div class="section">
+                <h2><span class="icon">📋</span> Current Holdings</h2>
+                <table>
+                    <tr>
+                        <th>Ticker</th>
+                        <th style="text-align: right;">Weight</th>
+                    </tr>
+                    {holdings_rows}
+                </table>
+            </div>
+
             <!-- Footer -->
             <div class="footer">
                 Generated on {datetime.now().strftime('%Y-%m-%d at %I:%M %p ET')} | Core Select Equity
@@ -318,9 +562,21 @@ def main():
     print("="*80)
     print(f"Run time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
+    # Load portfolio history and build portfolio index
+    print("Loading portfolio history...")
+    portfolio_df, history_df = load_portfolio_history()
+    print()
+
+    # Fetch S&P 500 data
+    print("Fetching S&P 500 data...")
+    start_date = portfolio_df['Date'].min()
+    today = pd.Timestamp.now().normalize()
+    tomorrow = today + pd.Timedelta(days=1)
+    spy_df = fetch_spy_data(start_date, tomorrow)
+    print(f"S&P 500 data: {len(spy_df)} dates\n")
+
     # Load current portfolio
     portfolio = load_current_portfolio()
-    print()
 
     # Fetch daily returns
     daily_returns = fetch_daily_returns(portfolio['Ticker'].tolist())
@@ -328,14 +584,14 @@ def main():
 
     # Analyze portfolio
     print("Analyzing portfolio performance...")
-    results = analyze_portfolio(portfolio, daily_returns)
+    results = analyze_portfolio(portfolio, daily_returns, portfolio_df, spy_df)
     print(f"Total Portfolio Return: {results['total_return']:+.2f}%")
     print(f"S&P 500 TR: {results['spy_return']:+.2f}%")
     print(f"Outperformance: {results['outperformance']:+.2f}%\n")
 
     # Generate email
     report_date = datetime.now()
-    html_content = generate_html_email(results, report_date)
+    html_content = generate_html_email(results, report_date, portfolio)
 
     # Create subject line
     return_sign = '+' if results['total_return'] >= 0 else ''
