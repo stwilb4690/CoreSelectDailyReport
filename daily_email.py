@@ -18,16 +18,16 @@ import os
 import numpy as np
 
 def load_portfolio_history():
-    """Load full portfolio history and build portfolio index"""
+    """Load full portfolio history and build daily portfolio index"""
     df = pd.read_csv('portfolio_history.csv')
     df['Date'] = pd.to_datetime(df['Date'])
     df = df.sort_values('Date')
 
-    print(f"Portfolio history: {len(df['Date'].unique())} dates")
+    print(f"Portfolio rebalance dates: {len(df['Date'].unique())}")
     print(f"Date range: {df['Date'].min().strftime('%Y-%m-%d')} to {df['Date'].max().strftime('%Y-%m-%d')}")
 
-    # Get unique dates
-    dates = sorted(df['Date'].unique())
+    # Get rebalance dates
+    rebalance_dates = sorted(df['Date'].unique())
 
     # Fetch all tickers and their price history
     all_tickers = df['Ticker'].unique().tolist()
@@ -50,27 +50,39 @@ def load_portfolio_history():
         except Exception as e:
             print(f"  Error fetching {ticker}: {e}")
 
-    # Build portfolio index
+    # Get all trading days from price data
+    all_dates = set()
+    for ticker_prices in price_data.values():
+        all_dates.update(ticker_prices.index)
+    all_dates = sorted([d for d in all_dates if d >= start_date])
+
+    # Build daily portfolio values
     portfolio_values = []
-    for date in dates:
-        holdings = df[df['Date'] == date]
-        total_value = 0
+    current_holdings = None
 
-        for _, row in holdings.iterrows():
-            ticker = row['Ticker']
-            weight = row['Weight']
+    for date in all_dates:
+        # Check if there's a rebalance on this date
+        if date in rebalance_dates:
+            current_holdings = df[df['Date'] == date].copy()
 
-            if ticker in price_data:
-                prices = price_data[ticker]
-                closest_price = prices[prices.index <= date]
-                if not closest_price.empty:
-                    price = closest_price['Close'].iloc[-1]
-                    total_value += weight * price
+        # Calculate portfolio value using current holdings
+        if current_holdings is not None:
+            total_value = 0
+            for _, row in current_holdings.iterrows():
+                ticker = row['Ticker']
+                weight = row['Weight']
 
-        portfolio_values.append({
-            'Date': date,
-            'Portfolio_Value': total_value
-        })
+                if ticker in price_data:
+                    prices = price_data[ticker]
+                    closest_price = prices[prices.index <= date]
+                    if not closest_price.empty:
+                        price = closest_price['Close'].iloc[-1]
+                        total_value += weight * price
+
+            portfolio_values.append({
+                'Date': date,
+                'Portfolio_Value': total_value
+            })
 
     portfolio_df = pd.DataFrame(portfolio_values)
 
@@ -79,6 +91,8 @@ def load_portfolio_history():
         portfolio_df['Portfolio_Index'] = (portfolio_df['Portfolio_Value'] / portfolio_df['Portfolio_Value'].iloc[0]) * 100
     else:
         portfolio_df['Portfolio_Index'] = 100
+
+    print(f"Daily portfolio values: {len(portfolio_df)} trading days")
 
     return portfolio_df, df
 
