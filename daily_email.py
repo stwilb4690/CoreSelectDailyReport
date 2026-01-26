@@ -313,105 +313,53 @@ def generate_html_email(results, report_date, current_portfolio):
     outperf_sign = '+' if outperformance >= 0 else ''
     outperf_color = '#10b981' if outperformance >= 0 else '#ef4444'
 
-    # Generate Top 5 Performers table with gradient bars
+    # Generate Top 5 Performers table
     top_performers_rows = ""
     for _, row in top_5_performers.iterrows():
-        bar_width = min(abs(row['Daily_Return']) * 10, 100)
-        if row['Daily_Return'] >= 0:
-            bar_gradient = 'linear-gradient(90deg, #10b981 0%, #34d399 100%)'
-            text_color = '#059669'
-        else:
-            bar_gradient = 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)'
-            text_color = '#dc2626'
-
+        text_color = '#059669' if row['Daily_Return'] >= 0 else '#dc2626'
         top_performers_rows += f"""
-        <tr>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{row['Ticker']}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{row['Weight']*100:.1f}%</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="flex: 1; height: 28px; background: #f3f4f6; border-radius: 6px; overflow: hidden; position: relative;">
-                        <div style="height: 100%; background: {bar_gradient}; width: {bar_width}%; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
-                    </div>
-                    <span style="min-width: 70px; text-align: right; font-weight: 700; color: {text_color}; font-size: 14px;">{row['Daily_Return']:+.2f}%</span>
-                </div>
-            </td>
-        </tr>
-        """
+                                                            <tr>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-weight: 500; font-size: 13px;">{row['Ticker']}</td>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px;">{row['Weight']*100:.1f}%</td>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 700; color: {text_color}; font-size: 13px;">{row['Daily_Return']:+.2f}%</td>
+                                                            </tr>"""
 
-    # Generate Bottom 5 Performers table with gradient bars
+    # Generate Bottom 5 Performers table
     bottom_performers_rows = ""
     for _, row in bottom_5_performers.iterrows():
-        bar_width = min(abs(row['Daily_Return']) * 10, 100)
-        bar_gradient = 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)'
         text_color = '#dc2626'
-
         bottom_performers_rows += f"""
-        <tr>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{row['Ticker']}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{row['Weight']*100:.1f}%</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="flex: 1; height: 28px; background: #f3f4f6; border-radius: 6px; overflow: hidden; position: relative;">
-                        <div style="height: 100%; background: {bar_gradient}; width: {bar_width}%; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
-                    </div>
-                    <span style="min-width: 70px; text-align: right; font-weight: 700; color: {text_color}; font-size: 14px;">{row['Daily_Return']:+.2f}%</span>
-                </div>
-            </td>
-        </tr>
-        """
+                                                            <tr>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-weight: 500; font-size: 13px;">{row['Ticker']}</td>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px;">{row['Weight']*100:.1f}%</td>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 700; color: {text_color}; font-size: 13px;">{row['Daily_Return']:+.2f}%</td>
+                                                            </tr>"""
 
-    # Generate Top 5 Contributors table with gradient bars
+    # Generate Top 5 Contributors table
     top_contributors_rows = ""
     for _, row in top_5_contributors.iterrows():
         contribution_pct = row['Daily_Contribution'] * 100
-        bar_width = min(abs(contribution_pct) * 100, 100)
-        if contribution_pct >= 0:
-            bar_gradient = 'linear-gradient(90deg, #10b981 0%, #34d399 100%)'
-            text_color = '#059669'
-        else:
-            bar_gradient = 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)'
-            text_color = '#dc2626'
-
+        text_color = '#059669' if contribution_pct >= 0 else '#dc2626'
         top_contributors_rows += f"""
-        <tr>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{row['Ticker']}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{row['Weight']*100:.1f}%</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #6b7280;">{row['Daily_Return']:+.2f}%</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="flex: 1; height: 28px; background: #f3f4f6; border-radius: 6px; overflow: hidden; position: relative;">
-                        <div style="height: 100%; background: {bar_gradient}; width: {bar_width}%; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
-                    </div>
-                    <span style="min-width: 70px; text-align: right; font-weight: 700; color: {text_color}; font-size: 14px;">{contribution_pct:+.2f}%</span>
-                </div>
-            </td>
-        </tr>
-        """
+                                                            <tr>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-weight: 500; font-size: 13px;">{row['Ticker']}</td>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px;">{row['Weight']*100:.1f}%</td>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #6b7280; font-size: 12px;">{row['Daily_Return']:+.2f}%</td>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 700; color: {text_color}; font-size: 13px;">{contribution_pct:+.2f}%</td>
+                                                            </tr>"""
 
-    # Generate Bottom 5 Contributors table with gradient bars
+    # Generate Bottom 5 Contributors table
     bottom_contributors_rows = ""
     for _, row in bottom_5_contributors.iterrows():
         contribution_pct = row['Daily_Contribution'] * 100
-        bar_width = min(abs(contribution_pct) * 100, 100)
-        bar_gradient = 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)'
         text_color = '#dc2626'
-
         bottom_contributors_rows += f"""
-        <tr>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{row['Ticker']}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{row['Weight']*100:.1f}%</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #6b7280;">{row['Daily_Return']:+.2f}%</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="flex: 1; height: 28px; background: #f3f4f6; border-radius: 6px; overflow: hidden; position: relative;">
-                        <div style="height: 100%; background: {bar_gradient}; width: {bar_width}%; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
-                    </div>
-                    <span style="min-width: 70px; text-align: right; font-weight: 700; color: {text_color}; font-size: 14px;">{contribution_pct:+.2f}%</span>
-                </div>
-            </td>
-        </tr>
-        """
+                                                            <tr>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-weight: 500; font-size: 13px;">{row['Ticker']}</td>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px;">{row['Weight']*100:.1f}%</td>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #6b7280; font-size: 12px;">{row['Daily_Return']:+.2f}%</td>
+                                                                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 700; color: {text_color}; font-size: 13px;">{contribution_pct:+.2f}%</td>
+                                                            </tr>"""
 
     # Generate Period Performance table
     period_labels = {
@@ -431,194 +379,210 @@ def generate_html_email(results, report_date, current_portfolio):
 
         if portfolio_return is not None and spy_return_val is not None:
             diff = portfolio_return - spy_return_val
-            diff_color = '#10b981' if diff >= 0 else '#ef4444'
+            diff_color = '#059669' if diff >= 0 else '#dc2626'
             diff_sign = '+' if diff >= 0 else ''
 
             period_rows += f"""
-            <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{period_labels[period]}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{portfolio_return:+.2f}%</td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{spy_return_val:+.2f}%</td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: {diff_color};">{diff_sign}{diff:.2f}%</td>
-            </tr>
-            """
+                                                <tr>
+                                                    <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-weight: 500; font-size: 13px;">{period_labels[period]}</td>
+                                                    <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px;">{portfolio_return:+.2f}%</td>
+                                                    <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px;">{spy_return_val:+.2f}%</td>
+                                                    <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 700; color: {diff_color}; font-size: 13px;">{diff_sign}{diff:.2f}%</td>
+                                                </tr>"""
 
     # Generate Current Holdings table
     holdings_rows = ""
     for _, row in current_portfolio.sort_values('Weight', ascending=False).iterrows():
         holdings_rows += f"""
-        <tr>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{row['Ticker']}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{row['Weight']*100:.1f}%</td>
-        </tr>
-        """
+                                                <tr>
+                                                    <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-weight: 500; font-size: 13px;">{row['Ticker']}</td>
+                                                    <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px;">{row['Weight']*100:.1f}%</td>
+                                                </tr>"""
 
     html = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="UTF-8">
-        <style>
-            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f7fa; }}
-            .container {{ max-width: 1200px; margin: 0 auto; padding: 20px; }}
-            .header {{ text-align: center; padding: 30px 0 20px 0; }}
-            .header h1 {{ margin: 0; font-size: 32px; color: #1f2937; }}
-            .header .date {{ color: #6b7280; font-size: 14px; margin-top: 8px; }}
-
-            .performance-box {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; border-radius: 15px; text-align: center; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
-            .performance-box .label {{ color: white; font-size: 14px; font-weight: 600; letter-spacing: 1px; margin: 0; }}
-            .performance-box .value {{ color: white; font-size: 56px; font-weight: bold; margin: 10px 0; }}
-            .performance-box .subdate {{ color: rgba(255,255,255,0.9); font-size: 14px; margin: 0; }}
-            .performance-box .metrics {{ display: flex; justify-content: center; gap: 60px; margin-top: 20px; }}
-            .performance-box .metric {{ text-align: center; }}
-            .performance-box .metric-label {{ color: rgba(255,255,255,0.7); font-size: 11px; text-transform: uppercase; margin: 0; }}
-            .performance-box .metric-value {{ color: white; font-size: 24px; font-weight: bold; margin: 5px 0 0 0; }}
-
-            .section {{ background: white; padding: 35px; margin-bottom: 25px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }}
-            .section h2 {{ margin: 0 0 8px 0; font-size: 20px; color: #1f2937; display: flex; align-items: center; gap: 10px; font-weight: 700; }}
-            .section h2 .icon {{ font-size: 22px; }}
-
-            .tables-container {{ display: flex; gap: 30px; }}
-
-            table {{ width: 100%; border-collapse: collapse; }}
-            th {{ background-color: #f9fafb; padding: 14px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid #e5e7eb; font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }}
-            td {{ font-size: 14px; }}
-
-            .footer {{ text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }}
-        </style>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
-    <body>
-        <div class="container">
-            <!-- Header -->
-            <div class="header">
-                <h1>📊 Core Select Equity Performance</h1>
-                <div class="date">As of Market Close: <strong>{report_date.strftime('%B %d, %Y')}</strong></div>
-            </div>
+    <body style="margin: 0; padding: 0; background-color: #f5f7fa; font-family: Arial, sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f7fa;">
+            <tr>
+                <td align="center" style="padding: 20px 10px;">
+                    <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
+                        <!-- Header -->
+                        <tr>
+                            <td style="padding: 30px 20px 20px 20px; text-align: center;">
+                                <h1 style="margin: 0; font-size: 28px; color: #1f2937;">📊 Core Select Equity Performance</h1>
+                                <p style="margin: 8px 0 0 0; color: #6b7280; font-size: 14px;">As of Market Close: <strong>{report_date.strftime('%B %d, %Y')}</strong></p>
+                            </td>
+                        </tr>
 
-            <!-- Today's Performance -->
-            <div class="performance-box">
-                <p class="label">TODAY'S PERFORMANCE</p>
-                <h1 class="value">{return_sign}{total_return:.2f}%</h1>
-                <p class="subdate">{report_date.strftime('%A, %B %d, %Y')}</p>
-                <div class="metrics">
-                    <div class="metric">
-                        <p class="metric-label">S&P 500 TR</p>
-                        <p class="metric-value">{spy_sign}{spy_return:.2f}%</p>
-                    </div>
-                    <div class="metric">
-                        <p class="metric-label">Outperformance</p>
-                        <p class="metric-value" style="color: {outperf_color};">{outperf_sign}{outperformance:.2f}%</p>
-                    </div>
-                </div>
-            </div>
+                        <!-- Today's Performance -->
+                        <tr>
+                            <td style="padding: 0 20px 20px 20px;">
+                                <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #667eea; border-radius: 12px;">
+                                    <tr>
+                                        <td style="padding: 35px 20px; text-align: center;">
+                                            <p style="margin: 0; color: white; font-size: 13px; font-weight: 600; letter-spacing: 1px;">TODAY'S PERFORMANCE</p>
+                                            <h1 style="margin: 10px 0; color: white; font-size: 48px; font-weight: bold;">{return_sign}{total_return:.2f}%</h1>
+                                            <p style="margin: 0 0 20px 0; color: rgba(255,255,255,0.9); font-size: 14px;">{report_date.strftime('%A, %B %d, %Y')}</p>
 
-            <!-- Top/Bottom Performers -->
-            <div class="section">
-                <h2><span class="icon">⚡</span> Top/Bottom Performers</h2>
-                <p style="color: #6b7280; font-size: 13px; margin: -10px 0 20px 0;">By daily return percentage</p>
-                <div class="tables-container">
-                    <!-- Top 5 Performers -->
-                    <div style="flex: 1;">
-                        <h3 style="color: #059669; font-size: 16px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px;">
-                            <span>🟢</span> Top 5 Performers
-                        </h3>
-                        <table>
-                            <tr>
-                                <th>Ticker</th>
-                                <th style="text-align: right;">Weight</th>
-                                <th>Daily Return</th>
-                            </tr>
-                            {top_performers_rows}
-                        </table>
-                    </div>
+                                            <table width="100%" cellpadding="0" cellspacing="0">
+                                                <tr>
+                                                    <td width="50%" style="text-align: center; padding: 10px;">
+                                                        <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 11px; text-transform: uppercase;">S&P 500 TR</p>
+                                                        <p style="margin: 5px 0 0 0; color: white; font-size: 22px; font-weight: bold;">{spy_sign}{spy_return:.2f}%</p>
+                                                    </td>
+                                                    <td width="50%" style="text-align: center; padding: 10px;">
+                                                        <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 11px; text-transform: uppercase;">Outperformance</p>
+                                                        <p style="margin: 5px 0 0 0; color: {outperf_color}; font-size: 22px; font-weight: bold;">{outperf_sign}{outperformance:.2f}%</p>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
 
-                    <!-- Bottom 5 Performers -->
-                    <div style="flex: 1;">
-                        <h3 style="color: #dc2626; font-size: 16px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px;">
-                            <span>🔴</span> Bottom 5 Performers
-                        </h3>
-                        <table>
-                            <tr>
-                                <th>Ticker</th>
-                                <th style="text-align: right;">Weight</th>
-                                <th>Daily Return</th>
-                            </tr>
-                            {bottom_performers_rows}
-                        </table>
-                    </div>
-                </div>
-            </div>
+                        <!-- Top/Bottom Performers -->
+                        <tr>
+                            <td style="padding: 0 20px 20px 20px;">
+                                <table width="100%" cellpadding="0" cellspacing="0" style="background-color: white; border-radius: 8px;">
+                                    <tr>
+                                        <td style="padding: 25px 20px;">
+                                            <h2 style="margin: 0 0 5px 0; font-size: 18px; color: #1f2937; font-weight: 700;">⚡ Top/Bottom Performers</h2>
+                                            <p style="margin: 0 0 15px 0; color: #6b7280; font-size: 12px;">By daily return percentage</p>
 
-            <!-- Top/Bottom Contributors -->
-            <div class="section">
-                <h2><span class="icon">💎</span> Top/Bottom Contributors</h2>
-                <p style="color: #6b7280; font-size: 13px; margin: -10px 0 20px 0;">By weighted contribution to portfolio return</p>
-                <div class="tables-container">
-                    <!-- Top 5 Contributors -->
-                    <div style="flex: 1;">
-                        <h3 style="color: #059669; font-size: 16px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px;">
-                            <span>🟢</span> Top 5 Contributors
-                        </h3>
-                        <table>
-                            <tr>
-                                <th>Ticker</th>
-                                <th style="text-align: right;">Weight</th>
-                                <th style="text-align: right;">Return</th>
-                                <th>Contribution</th>
-                            </tr>
-                            {top_contributors_rows}
-                        </table>
-                    </div>
+                                            <table width="100%" cellpadding="0" cellspacing="0">
+                                                <tr>
+                                                    <td width="50%" valign="top" style="padding-right: 10px;">
+                                                        <h3 style="margin: 0 0 10px 0; color: #059669; font-size: 15px; font-weight: 600;">🟢 Top 5 Performers</h3>
+                                                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                                                            <tr style="background-color: #f9fafb;">
+                                                                <th style="padding: 10px 8px; text-align: left; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Ticker</th>
+                                                                <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Weight</th>
+                                                                <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Return</th>
+                                                            </tr>
+                                                            {top_performers_rows}
+                                                        </table>
+                                                    </td>
+                                                    <td width="50%" valign="top" style="padding-left: 10px;">
+                                                        <h3 style="margin: 0 0 10px 0; color: #dc2626; font-size: 15px; font-weight: 600;">🔴 Bottom 5 Performers</h3>
+                                                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                                                            <tr style="background-color: #f9fafb;">
+                                                                <th style="padding: 10px 8px; text-align: left; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Ticker</th>
+                                                                <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Weight</th>
+                                                                <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Return</th>
+                                                            </tr>
+                                                            {bottom_performers_rows}
+                                                        </table>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
 
-                    <!-- Bottom 5 Contributors -->
-                    <div style="flex: 1;">
-                        <h3 style="color: #dc2626; font-size: 16px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px;">
-                            <span>🔴</span> Bottom 5 Contributors
-                        </h3>
-                        <table>
-                            <tr>
-                                <th>Ticker</th>
-                                <th style="text-align: right;">Weight</th>
-                                <th style="text-align: right;">Return</th>
-                                <th>Contribution</th>
-                            </tr>
-                            {bottom_contributors_rows}
-                        </table>
-                    </div>
-                </div>
-            </div>
+                        <!-- Top/Bottom Contributors -->
+                        <tr>
+                            <td style="padding: 0 20px 20px 20px;">
+                                <table width="100%" cellpadding="0" cellspacing="0" style="background-color: white; border-radius: 8px;">
+                                    <tr>
+                                        <td style="padding: 25px 20px;">
+                                            <h2 style="margin: 0 0 5px 0; font-size: 18px; color: #1f2937; font-weight: 700;">💎 Top/Bottom Contributors</h2>
+                                            <p style="margin: 0 0 15px 0; color: #6b7280; font-size: 12px;">By weighted contribution to portfolio return</p>
 
-            <!-- Period Performance -->
-            <div class="section">
-                <h2><span class="icon">📈</span> Period Performance</h2>
-                <table>
-                    <tr>
-                        <th>Period</th>
-                        <th style="text-align: right;">Portfolio</th>
-                        <th style="text-align: right;">S&P 500 TR</th>
-                        <th style="text-align: right;">Difference</th>
-                    </tr>
-                    {period_rows}
-                </table>
-            </div>
+                                            <table width="100%" cellpadding="0" cellspacing="0">
+                                                <tr>
+                                                    <td width="50%" valign="top" style="padding-right: 10px;">
+                                                        <h3 style="margin: 0 0 10px 0; color: #059669; font-size: 15px; font-weight: 600;">🟢 Top 5 Contributors</h3>
+                                                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                                                            <tr style="background-color: #f9fafb;">
+                                                                <th style="padding: 10px 8px; text-align: left; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Ticker</th>
+                                                                <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Weight</th>
+                                                                <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Return</th>
+                                                                <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Contrib</th>
+                                                            </tr>
+                                                            {top_contributors_rows}
+                                                        </table>
+                                                    </td>
+                                                    <td width="50%" valign="top" style="padding-left: 10px;">
+                                                        <h3 style="margin: 0 0 10px 0; color: #dc2626; font-size: 15px; font-weight: 600;">🔴 Bottom 5 Contributors</h3>
+                                                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                                                            <tr style="background-color: #f9fafb;">
+                                                                <th style="padding: 10px 8px; text-align: left; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Ticker</th>
+                                                                <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Weight</th>
+                                                                <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Return</th>
+                                                                <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Contrib</th>
+                                                            </tr>
+                                                            {bottom_contributors_rows}
+                                                        </table>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
 
-            <!-- Current Holdings -->
-            <div class="section">
-                <h2><span class="icon">📋</span> Current Holdings</h2>
-                <table>
-                    <tr>
-                        <th>Ticker</th>
-                        <th style="text-align: right;">Weight</th>
-                    </tr>
-                    {holdings_rows}
-                </table>
-            </div>
+                        <!-- Period Performance -->
+                        <tr>
+                            <td style="padding: 0 20px 20px 20px;">
+                                <table width="100%" cellpadding="0" cellspacing="0" style="background-color: white; border-radius: 8px;">
+                                    <tr>
+                                        <td style="padding: 25px 20px;">
+                                            <h2 style="margin: 0 0 15px 0; font-size: 18px; color: #1f2937; font-weight: 700;">📈 Period Performance</h2>
+                                            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                                                <tr style="background-color: #f9fafb;">
+                                                    <th style="padding: 10px 8px; text-align: left; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Period</th>
+                                                    <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Portfolio</th>
+                                                    <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">S&P 500 TR</th>
+                                                    <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Difference</th>
+                                                </tr>
+                                                {period_rows}
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
 
-            <!-- Footer -->
-            <div class="footer">
-                Generated on {datetime.now().strftime('%Y-%m-%d at %I:%M %p ET')} | Core Select Equity
-            </div>
-        </div>
+                        <!-- Current Holdings -->
+                        <tr>
+                            <td style="padding: 0 20px 20px 20px;">
+                                <table width="100%" cellpadding="0" cellspacing="0" style="background-color: white; border-radius: 8px;">
+                                    <tr>
+                                        <td style="padding: 25px 20px;">
+                                            <h2 style="margin: 0 0 15px 0; font-size: 18px; color: #1f2937; font-weight: 700;">📋 Current Holdings</h2>
+                                            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                                                <tr style="background-color: #f9fafb;">
+                                                    <th style="padding: 10px 8px; text-align: left; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Ticker</th>
+                                                    <th style="padding: 10px 8px; text-align: right; font-size: 10px; color: #6b7280; text-transform: uppercase; border-bottom: 2px solid #e5e7eb;">Weight</th>
+                                                </tr>
+                                                {holdings_rows}
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+
+                        <!-- Footer -->
+                        <tr>
+                            <td style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+                                Generated on {datetime.now().strftime('%Y-%m-%d at %I:%M %p ET')} | Core Select Equity
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
     </body>
     </html>
     """
