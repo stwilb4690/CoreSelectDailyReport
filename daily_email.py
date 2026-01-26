@@ -251,8 +251,12 @@ def analyze_portfolio(portfolio, daily_returns, portfolio_df, spy_df):
     outperformance = total_return - spy_return
 
     # Top/Bottom 5 by daily return percentage
-    top_5 = analysis.nlargest(5, 'Daily_Return')[['Ticker', 'Weight', 'Daily_Return']]
-    bottom_5 = analysis.nsmallest(5, 'Daily_Return')[['Ticker', 'Weight', 'Daily_Return']]
+    top_5_performers = analysis.nlargest(5, 'Daily_Return')[['Ticker', 'Weight', 'Daily_Return']]
+    bottom_5_performers = analysis.nsmallest(5, 'Daily_Return')[['Ticker', 'Weight', 'Daily_Return']]
+
+    # Top/Bottom 5 by contribution (weighted impact)
+    top_5_contributors = analysis.nlargest(5, 'Daily_Contribution')[['Ticker', 'Weight', 'Daily_Return', 'Daily_Contribution']]
+    bottom_5_contributors = analysis.nsmallest(5, 'Daily_Contribution')[['Ticker', 'Weight', 'Daily_Return', 'Daily_Contribution']]
 
     # Calculate period metrics
     portfolio_metrics = {
@@ -281,8 +285,10 @@ def analyze_portfolio(portfolio, daily_returns, portfolio_df, spy_df):
         'total_return': total_return,
         'spy_return': spy_return,
         'outperformance': outperformance,
-        'top_5': top_5,
-        'bottom_5': bottom_5,
+        'top_5_performers': top_5_performers,
+        'bottom_5_performers': bottom_5_performers,
+        'top_5_contributors': top_5_contributors,
+        'bottom_5_contributors': bottom_5_contributors,
         'analysis_df': analysis,
         'portfolio_metrics': portfolio_metrics,
         'spy_metrics': spy_metrics
@@ -294,8 +300,10 @@ def generate_html_email(results, report_date, current_portfolio):
     total_return = results['total_return']
     spy_return = results['spy_return']
     outperformance = results['outperformance']
-    top_5 = results['top_5']
-    bottom_5 = results['bottom_5']
+    top_5_performers = results['top_5_performers']
+    bottom_5_performers = results['bottom_5_performers']
+    top_5_contributors = results['top_5_contributors']
+    bottom_5_contributors = results['bottom_5_contributors']
     portfolio_metrics = results['portfolio_metrics']
     spy_metrics = results['spy_metrics']
 
@@ -305,44 +313,101 @@ def generate_html_email(results, report_date, current_portfolio):
     outperf_sign = '+' if outperformance >= 0 else ''
     outperf_color = '#10b981' if outperformance >= 0 else '#ef4444'
 
-    # Generate Top 5 Performers table with visual bars
-    top_rows = ""
-    for _, row in top_5.iterrows():
-        # Calculate bar width (scale to max 100%)
+    # Generate Top 5 Performers table with gradient bars
+    top_performers_rows = ""
+    for _, row in top_5_performers.iterrows():
         bar_width = min(abs(row['Daily_Return']) * 10, 100)
-        bar_color = '#10b981' if row['Daily_Return'] >= 0 else '#ef4444'
+        if row['Daily_Return'] >= 0:
+            bar_gradient = 'linear-gradient(90deg, #10b981 0%, #34d399 100%)'
+            text_color = '#059669'
+        else:
+            bar_gradient = 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)'
+            text_color = '#dc2626'
 
-        top_rows += f"""
+        top_performers_rows += f"""
         <tr>
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{row['Ticker']}</td>
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{row['Weight']*100:.1f}%</td>
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="flex: 1; height: 24px; background: #f3f4f6; border-radius: 4px; overflow: hidden; position: relative;">
-                        <div style="height: 100%; background: {bar_color}; width: {bar_width}%;"></div>
+                    <div style="flex: 1; height: 28px; background: #f3f4f6; border-radius: 6px; overflow: hidden; position: relative;">
+                        <div style="height: 100%; background: {bar_gradient}; width: {bar_width}%; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
                     </div>
-                    <span style="min-width: 60px; text-align: right; font-weight: 600; color: {bar_color};">{row['Daily_Return']:+.2f}%</span>
+                    <span style="min-width: 70px; text-align: right; font-weight: 700; color: {text_color}; font-size: 14px;">{row['Daily_Return']:+.2f}%</span>
                 </div>
             </td>
         </tr>
         """
 
-    # Generate Bottom 5 Performers table with visual bars
-    bottom_rows = ""
-    for _, row in bottom_5.iterrows():
+    # Generate Bottom 5 Performers table with gradient bars
+    bottom_performers_rows = ""
+    for _, row in bottom_5_performers.iterrows():
         bar_width = min(abs(row['Daily_Return']) * 10, 100)
-        bar_color = '#ef4444'
+        bar_gradient = 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)'
+        text_color = '#dc2626'
 
-        bottom_rows += f"""
+        bottom_performers_rows += f"""
         <tr>
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{row['Ticker']}</td>
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{row['Weight']*100:.1f}%</td>
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="flex: 1; height: 24px; background: #f3f4f6; border-radius: 4px; overflow: hidden; position: relative;">
-                        <div style="height: 100%; background: {bar_color}; width: {bar_width}%;"></div>
+                    <div style="flex: 1; height: 28px; background: #f3f4f6; border-radius: 6px; overflow: hidden; position: relative;">
+                        <div style="height: 100%; background: {bar_gradient}; width: {bar_width}%; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
                     </div>
-                    <span style="min-width: 60px; text-align: right; font-weight: 600; color: {bar_color};">{row['Daily_Return']:+.2f}%</span>
+                    <span style="min-width: 70px; text-align: right; font-weight: 700; color: {text_color}; font-size: 14px;">{row['Daily_Return']:+.2f}%</span>
+                </div>
+            </td>
+        </tr>
+        """
+
+    # Generate Top 5 Contributors table with gradient bars
+    top_contributors_rows = ""
+    for _, row in top_5_contributors.iterrows():
+        contribution_pct = row['Daily_Contribution'] * 100
+        bar_width = min(abs(contribution_pct) * 100, 100)
+        if contribution_pct >= 0:
+            bar_gradient = 'linear-gradient(90deg, #10b981 0%, #34d399 100%)'
+            text_color = '#059669'
+        else:
+            bar_gradient = 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)'
+            text_color = '#dc2626'
+
+        top_contributors_rows += f"""
+        <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{row['Ticker']}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{row['Weight']*100:.1f}%</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #6b7280;">{row['Daily_Return']:+.2f}%</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="flex: 1; height: 28px; background: #f3f4f6; border-radius: 6px; overflow: hidden; position: relative;">
+                        <div style="height: 100%; background: {bar_gradient}; width: {bar_width}%; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
+                    </div>
+                    <span style="min-width: 70px; text-align: right; font-weight: 700; color: {text_color}; font-size: 14px;">{contribution_pct:+.2f}%</span>
+                </div>
+            </td>
+        </tr>
+        """
+
+    # Generate Bottom 5 Contributors table with gradient bars
+    bottom_contributors_rows = ""
+    for _, row in bottom_5_contributors.iterrows():
+        contribution_pct = row['Daily_Contribution'] * 100
+        bar_width = min(abs(contribution_pct) * 100, 100)
+        bar_gradient = 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)'
+        text_color = '#dc2626'
+
+        bottom_contributors_rows += f"""
+        <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">{row['Ticker']}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">{row['Weight']*100:.1f}%</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #6b7280;">{row['Daily_Return']:+.2f}%</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="flex: 1; height: 28px; background: #f3f4f6; border-radius: 6px; overflow: hidden; position: relative;">
+                        <div style="height: 100%; background: {bar_gradient}; width: {bar_width}%; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
+                    </div>
+                    <span style="min-width: 70px; text-align: right; font-weight: 700; color: {text_color}; font-size: 14px;">{contribution_pct:+.2f}%</span>
                 </div>
             </td>
         </tr>
@@ -409,15 +474,15 @@ def generate_html_email(results, report_date, current_portfolio):
             .performance-box .metric-label {{ color: rgba(255,255,255,0.7); font-size: 11px; text-transform: uppercase; margin: 0; }}
             .performance-box .metric-value {{ color: white; font-size: 24px; font-weight: bold; margin: 5px 0 0 0; }}
 
-            .section {{ background: white; padding: 30px; margin-bottom: 20px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-            .section h2 {{ margin: 0 0 20px 0; font-size: 18px; color: #1f2937; display: flex; align-items: center; gap: 8px; }}
-            .section h2 .icon {{ font-size: 20px; }}
+            .section {{ background: white; padding: 35px; margin-bottom: 25px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }}
+            .section h2 {{ margin: 0 0 8px 0; font-size: 20px; color: #1f2937; display: flex; align-items: center; gap: 10px; font-weight: 700; }}
+            .section h2 .icon {{ font-size: 22px; }}
 
-            .tables-container {{ display: flex; gap: 20px; margin-bottom: 20px; }}
-            .table-wrapper {{ flex: 1; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+            .tables-container {{ display: flex; gap: 30px; }}
 
             table {{ width: 100%; border-collapse: collapse; }}
-            th {{ background-color: #f3f4f6; padding: 12px; text-align: left; font-weight: 600; border-bottom: 2px solid #e5e7eb; font-size: 12px; color: #6b7280; text-transform: uppercase; }}
+            th {{ background-color: #f9fafb; padding: 14px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid #e5e7eb; font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }}
+            td {{ font-size: 14px; }}
 
             .footer {{ text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }}
         </style>
@@ -448,31 +513,78 @@ def generate_html_email(results, report_date, current_portfolio):
             </div>
 
             <!-- Top/Bottom Performers -->
-            <div class="tables-container">
-                <!-- Top 5 Performers -->
-                <div class="table-wrapper">
-                    <h2><span class="icon">🟢</span> Top 5 Performers</h2>
-                    <table>
-                        <tr>
-                            <th>Ticker</th>
-                            <th style="text-align: right;">Weight</th>
-                            <th>Daily Return</th>
-                        </tr>
-                        {top_rows}
-                    </table>
-                </div>
+            <div class="section">
+                <h2><span class="icon">⚡</span> Top/Bottom Performers</h2>
+                <p style="color: #6b7280; font-size: 13px; margin: -10px 0 20px 0;">By daily return percentage</p>
+                <div class="tables-container">
+                    <!-- Top 5 Performers -->
+                    <div style="flex: 1;">
+                        <h3 style="color: #059669; font-size: 16px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px;">
+                            <span>🟢</span> Top 5 Performers
+                        </h3>
+                        <table>
+                            <tr>
+                                <th>Ticker</th>
+                                <th style="text-align: right;">Weight</th>
+                                <th>Daily Return</th>
+                            </tr>
+                            {top_performers_rows}
+                        </table>
+                    </div>
 
-                <!-- Bottom 5 Performers -->
-                <div class="table-wrapper">
-                    <h2><span class="icon">🔴</span> Bottom 5 Performers</h2>
-                    <table>
-                        <tr>
-                            <th>Ticker</th>
-                            <th style="text-align: right;">Weight</th>
-                            <th>Daily Return</th>
-                        </tr>
-                        {bottom_rows}
-                    </table>
+                    <!-- Bottom 5 Performers -->
+                    <div style="flex: 1;">
+                        <h3 style="color: #dc2626; font-size: 16px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px;">
+                            <span>🔴</span> Bottom 5 Performers
+                        </h3>
+                        <table>
+                            <tr>
+                                <th>Ticker</th>
+                                <th style="text-align: right;">Weight</th>
+                                <th>Daily Return</th>
+                            </tr>
+                            {bottom_performers_rows}
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top/Bottom Contributors -->
+            <div class="section">
+                <h2><span class="icon">💎</span> Top/Bottom Contributors</h2>
+                <p style="color: #6b7280; font-size: 13px; margin: -10px 0 20px 0;">By weighted contribution to portfolio return</p>
+                <div class="tables-container">
+                    <!-- Top 5 Contributors -->
+                    <div style="flex: 1;">
+                        <h3 style="color: #059669; font-size: 16px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px;">
+                            <span>🟢</span> Top 5 Contributors
+                        </h3>
+                        <table>
+                            <tr>
+                                <th>Ticker</th>
+                                <th style="text-align: right;">Weight</th>
+                                <th style="text-align: right;">Return</th>
+                                <th>Contribution</th>
+                            </tr>
+                            {top_contributors_rows}
+                        </table>
+                    </div>
+
+                    <!-- Bottom 5 Contributors -->
+                    <div style="flex: 1;">
+                        <h3 style="color: #dc2626; font-size: 16px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px;">
+                            <span>🔴</span> Bottom 5 Contributors
+                        </h3>
+                        <table>
+                            <tr>
+                                <th>Ticker</th>
+                                <th style="text-align: right;">Weight</th>
+                                <th style="text-align: right;">Return</th>
+                                <th>Contribution</th>
+                            </tr>
+                            {bottom_contributors_rows}
+                        </table>
+                    </div>
                 </div>
             </div>
 
