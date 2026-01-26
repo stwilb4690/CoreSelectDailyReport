@@ -18,7 +18,7 @@ import os
 import numpy as np
 
 def load_portfolio_history():
-    """Load full portfolio history and build daily portfolio index"""
+    """Load full portfolio history and build daily portfolio index using shares-based approach"""
     df = pd.read_csv('portfolio_history.csv')
     df['Date'] = pd.to_datetime(df['Date'])
     df = df.sort_values('Date')
@@ -37,8 +37,8 @@ def load_portfolio_history():
     today = pd.Timestamp.now().normalize()
     tomorrow = today + pd.Timedelta(days=1)
 
-    # Fetch all price data
-    price_data = {}
+    # Fetch all price data and create pivot table
+    price_list = []
     for ticker in all_tickers:
         try:
             stock = yf.Ticker(ticker)
@@ -46,45 +46,98 @@ def load_portfolio_history():
             if not hist.empty:
                 hist = hist.reset_index()
                 hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None)
-                price_data[ticker] = hist[['Date', 'Close']].set_index('Date')
+                hist['Ticker'] = ticker
+                price_list.append(hist[['Date', 'Ticker', 'Close']])
         except Exception as e:
             print(f"  Error fetching {ticker}: {e}")
 
-    # Get all trading days from price data
-    all_dates = set()
-    for ticker_prices in price_data.values():
-        all_dates.update(ticker_prices.index)
-    all_dates = sorted([d for d in all_dates if d >= start_date])
+    if not price_list:
+        return pd.DataFrame(), df
 
-    # Build daily portfolio values
-    portfolio_values = []
-    current_holdings = None
+    # Create price pivot table
+    all_price_data = pd.concat(price_list, ignore_index=True)
+    price_pivot = all_price_data.pivot(index='Date', columns='Ticker', values='Close')
+    price_pivot = price_pivot.sort_index()
+    price_pivot = price_pivot.ffill()  # Forward fill for weekends/holidays
 
-    for date in all_dates:
-        # Check if there's a rebalance on this date
-        if date in rebalance_dates:
-            current_holdings = df[df['Date'] == date].copy()
+    # Create weights dictionary by date
+    weights_by_date = {}
+    for rebal_date in rebalance_dates:
+        rebalance_data = df[df['Date'] == rebal_date]
+        weights_dict = dict(zip(rebalance_data['Ticker'], rebalance_data['Weight']))
+        weights_by_date[rebal_date] = weights_dict
 
-        # Calculate portfolio value using current holdings
-        if current_holdings is not None:
-            total_value = 0
-            for _, row in current_holdings.iterrows():
-                ticker = row['Ticker']
-                weight = row['Weight']
+    # Find valid trading dates
+    all_dates = price_pivot.index
+    valid_dates = all_dates[all_dates >= start_date]
 
-                if ticker in price_data:
-                    prices = price_data[ticker]
-                    closest_price = prices[prices.index <= date]
-                    if not closest_price.empty:
-                        price = closest_price['Close'].iloc[-1]
-                        total_value += weight * price
+    if len(valid_dates) == 0:
+        return pd.DataFrame(), df
 
-            portfolio_values.append({
-                'Date': date,
-                'Portfolio_Value': total_value
-            })
+    # Start portfolio tracking with shares-based approach
+    portfolio_value = 10000.0  # Starting value
+    holdings_shares = {}  # Track actual shares held
+    portfolio_results = []
+    processed_rebalances = set()
 
-    portfolio_df = pd.DataFrame(portfolio_values)
+    first_price_date = valid_dates[0]
+
+    # Find first rebalance to initialize holdings
+    first_rebal = None
+    for rebal_date in rebalance_dates:
+        if rebal_date <= first_price_date:
+            first_rebal = rebal_date
+            break
+
+    if first_rebal is None:
+        return pd.DataFrame(), df
+
+    # Buy initial shares at first rebalance
+    target_weights = weights_by_date[first_rebal]
+    for ticker, weight in target_weights.items():
+        if ticker in price_pivot.columns:
+            price = price_pivot.loc[first_price_date, ticker]
+            if pd.notna(price) and price > 0:
+                dollar_amount = portfolio_value * weight
+                shares = dollar_amount / price
+                holdings_shares[ticker] = shares
+
+    processed_rebalances.add(first_rebal)
+
+    # Track portfolio daily
+    for date in valid_dates:
+        # Calculate portfolio value from current holdings
+        portfolio_value = 0.0
+        for ticker, shares in holdings_shares.items():
+            if ticker in price_pivot.columns:
+                price = price_pivot.loc[date, ticker]
+                if pd.notna(price):
+                    portfolio_value += shares * price
+
+        # Record value
+        portfolio_results.append({
+            'Date': date,
+            'Portfolio_Value': portfolio_value
+        })
+
+        # Check for rebalances on or before this date that haven't been processed
+        for rebal_date in rebalance_dates:
+            if rebal_date not in processed_rebalances and rebal_date <= date:
+                # Rebalance: sell all and buy according to target weights
+                target_weights = weights_by_date[rebal_date]
+                holdings_shares = {}
+
+                for ticker, weight in target_weights.items():
+                    if ticker in price_pivot.columns:
+                        price = price_pivot.loc[date, ticker]
+                        if pd.notna(price) and price > 0:
+                            dollar_amount = portfolio_value * weight
+                            shares = dollar_amount / price
+                            holdings_shares[ticker] = shares
+
+                processed_rebalances.add(rebal_date)
+
+    portfolio_df = pd.DataFrame(portfolio_results)
 
     # Normalize to index starting at 100
     if not portfolio_df.empty and portfolio_df['Portfolio_Value'].iloc[0] > 0:
