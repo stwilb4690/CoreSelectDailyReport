@@ -640,6 +640,153 @@ def create_outperformance_chart(portfolio_df, spy_df):
 
     return fig
 
+def save_portfolio_history(df):
+    """Save portfolio history to CSV"""
+    df.to_csv('portfolio_history.csv', index=False)
+
+def render_holdings_manager(portfolio_history_raw):
+    """Render the holdings management interface in the sidebar"""
+    st.sidebar.markdown("---")
+    st.sidebar.header("📝 Manage Holdings")
+
+    # Get latest holdings
+    latest_date = portfolio_history_raw['Date'].max()
+    current_holdings = portfolio_history_raw[portfolio_history_raw['Date'] == latest_date].copy()
+
+    # Initialize session state for pending changes
+    if 'pending_holdings' not in st.session_state:
+        st.session_state.pending_holdings = current_holdings[['Ticker', 'Weight']].to_dict('records')
+        st.session_state.holdings_modified = False
+
+    # Button to reset to current holdings
+    if st.sidebar.button("🔄 Reset to Current Holdings"):
+        st.session_state.pending_holdings = current_holdings[['Ticker', 'Weight']].to_dict('records')
+        st.session_state.holdings_modified = False
+        st.rerun()
+
+    # Calculate current total weight
+    total_weight = sum(h['Weight'] for h in st.session_state.pending_holdings)
+    weight_color = "green" if abs(total_weight - 1.0) < 0.001 else "red"
+    st.sidebar.markdown(f"**Total Weight:** <span style='color:{weight_color}'>{total_weight*100:.1f}%</span>", unsafe_allow_html=True)
+
+    # Add new ticker section
+    with st.sidebar.expander("➕ Add New Ticker", expanded=False):
+        new_ticker = st.text_input("Ticker Symbol", key="new_ticker").upper().strip()
+        new_weight = st.number_input("Weight (%)", min_value=0.0, max_value=100.0, value=2.0, step=0.5, key="new_weight")
+
+        if st.button("Add Ticker"):
+            if new_ticker:
+                existing_tickers = [h['Ticker'] for h in st.session_state.pending_holdings]
+                if new_ticker in existing_tickers:
+                    st.error(f"{new_ticker} already exists. Use Update Weight instead.")
+                else:
+                    st.session_state.pending_holdings.append({
+                        'Ticker': new_ticker,
+                        'Weight': new_weight / 100
+                    })
+                    st.session_state.holdings_modified = True
+                    st.success(f"Added {new_ticker} at {new_weight}%")
+                    st.rerun()
+            else:
+                st.error("Please enter a ticker symbol")
+
+    # Remove ticker section
+    with st.sidebar.expander("➖ Remove Ticker", expanded=False):
+        tickers_to_remove = [h['Ticker'] for h in st.session_state.pending_holdings]
+        ticker_to_remove = st.selectbox("Select Ticker to Remove", tickers_to_remove, key="remove_ticker")
+
+        if st.button("Remove Ticker"):
+            st.session_state.pending_holdings = [
+                h for h in st.session_state.pending_holdings if h['Ticker'] != ticker_to_remove
+            ]
+            st.session_state.holdings_modified = True
+            st.success(f"Removed {ticker_to_remove}")
+            st.rerun()
+
+    # Update weight section
+    with st.sidebar.expander("✏️ Update Weight", expanded=False):
+        tickers_to_update = [h['Ticker'] for h in st.session_state.pending_holdings]
+        ticker_to_update = st.selectbox("Select Ticker", tickers_to_update, key="update_ticker")
+
+        current_weight = next((h['Weight'] for h in st.session_state.pending_holdings if h['Ticker'] == ticker_to_update), 0) * 100
+        updated_weight = st.number_input("New Weight (%)", min_value=0.0, max_value=100.0, value=current_weight, step=0.5, key="update_weight")
+
+        if st.button("Update Weight"):
+            for h in st.session_state.pending_holdings:
+                if h['Ticker'] == ticker_to_update:
+                    h['Weight'] = updated_weight / 100
+                    break
+            st.session_state.holdings_modified = True
+            st.success(f"Updated {ticker_to_update} to {updated_weight}%")
+            st.rerun()
+
+    # Swap ticker section
+    with st.sidebar.expander("🔄 Swap Tickers", expanded=False):
+        tickers_to_swap = [h['Ticker'] for h in st.session_state.pending_holdings]
+        old_ticker = st.selectbox("Replace This Ticker", tickers_to_swap, key="swap_old")
+        new_swap_ticker = st.text_input("With New Ticker", key="swap_new").upper().strip()
+
+        if st.button("Swap Tickers"):
+            if new_swap_ticker:
+                for h in st.session_state.pending_holdings:
+                    if h['Ticker'] == old_ticker:
+                        h['Ticker'] = new_swap_ticker
+                        break
+                st.session_state.holdings_modified = True
+                st.success(f"Swapped {old_ticker} → {new_swap_ticker}")
+                st.rerun()
+            else:
+                st.error("Please enter a new ticker symbol")
+
+    # Show pending changes
+    if st.session_state.holdings_modified:
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 📋 Pending Changes")
+
+        pending_df = pd.DataFrame(st.session_state.pending_holdings)
+        pending_df = pending_df.sort_values('Weight', ascending=False)
+        pending_df['Weight'] = pending_df['Weight'].apply(lambda x: f"{x*100:.1f}%")
+        st.sidebar.dataframe(pending_df, hide_index=True, use_container_width=True)
+
+        # Save changes button
+        st.sidebar.markdown("---")
+        rebalance_date = st.sidebar.date_input("Rebalance Date", value=datetime.now())
+
+        if st.sidebar.button("💾 Save New Rebalance", type="primary"):
+            # Validate weights
+            total = sum(h['Weight'] for h in st.session_state.pending_holdings)
+            if abs(total - 1.0) > 0.01:
+                st.sidebar.error(f"Weights must sum to 100%. Current: {total*100:.1f}%")
+            else:
+                # Load current portfolio history
+                portfolio_df = pd.read_csv('portfolio_history.csv')
+                portfolio_df['Date'] = pd.to_datetime(portfolio_df['Date'])
+
+                # Create new rebalance entries
+                new_entries = []
+                for h in st.session_state.pending_holdings:
+                    new_entries.append({
+                        'Date': pd.Timestamp(rebalance_date),
+                        'Ticker': h['Ticker'],
+                        'Weight': h['Weight']
+                    })
+
+                new_df = pd.DataFrame(new_entries)
+
+                # Append to history
+                updated_df = pd.concat([portfolio_df, new_df], ignore_index=True)
+                updated_df['Date'] = pd.to_datetime(updated_df['Date'])
+                updated_df = updated_df.sort_values(['Date', 'Ticker'])
+
+                # Save
+                updated_df['Date'] = updated_df['Date'].dt.strftime('%Y-%m-%d')
+                save_portfolio_history(updated_df)
+
+                st.session_state.holdings_modified = False
+                st.sidebar.success(f"Saved rebalance for {rebalance_date}")
+                st.cache_data.clear()
+                st.rerun()
+
 def main():
     st.markdown("<h1 style='color: #1f2937;'>📊 Core Select Equity Performance</h1>", unsafe_allow_html=True)
 
@@ -672,6 +819,9 @@ def main():
         price_data = get_combined_price_data()
         portfolio_history_raw = load_portfolio_history()
         ycharts_data = load_ycharts_level_data()
+
+    # Render holdings manager in sidebar
+    render_holdings_manager(portfolio_history_raw)
 
         # Generate monthly rebalances if requested
         if use_monthly_rebalance:
