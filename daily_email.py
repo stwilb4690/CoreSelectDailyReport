@@ -200,7 +200,7 @@ def fetch_daily_returns(tickers):
     return pd.DataFrame(returns_data)
 
 def fetch_spy_data(start_date, end_date):
-    """Fetch S&P 500 TR historical data"""
+    """Fetch S&P 500 Total Return historical data (^SP500TR matches YCharts ^SPXTR)"""
     try:
         sp500tr = yf.Ticker('^SP500TR')
         hist = sp500tr.history(start=start_date, end=end_date)
@@ -221,7 +221,7 @@ def fetch_spy_data(start_date, end_date):
         return pd.DataFrame()
 
 def fetch_spy_return():
-    """Fetch S&P 500 daily return"""
+    """Fetch S&P 500 Total Return daily return (^SP500TR matches YCharts ^SPXTR)"""
     try:
         sp500tr = yf.Ticker('^SP500TR')
         today = pd.Timestamp.now().normalize()

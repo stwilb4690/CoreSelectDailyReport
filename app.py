@@ -313,16 +313,16 @@ def calculate_portfolio_performance(price_data, portfolio_history):
     return portfolio_df
 
 def fetch_spy_data(start_date, end_date):
-    """Fetch S&P 500 Total Return benchmark data"""
+    """Fetch S&P 500 Total Return benchmark data (^SP500TR to match YCharts ^SPXTR)"""
     try:
-        # Try ^SP500TR (official S&P 500 Total Return Index) first
+        # Use ^SP500TR (S&P 500 Total Return Index) - matches YCharts ^SPXTR
+        # Do NOT fall back to SPY as it doesn't include reinvested dividends
         sp500tr = yf.Ticker('^SP500TR')
         data = sp500tr.history(start=start_date, end=end_date)
 
-        # Fallback to SPY if ^SP500TR fails
         if data.empty:
-            spy = yf.Ticker('SPY')
-            data = spy.history(start=start_date, end=end_date)
+            st.sidebar.warning("⚠️ S&P 500 Total Return data unavailable")
+            return pd.DataFrame()
 
         if not data.empty:
             # Reset index to avoid Date being both index and column

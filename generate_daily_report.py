@@ -153,7 +153,7 @@ def calculate_portfolio(price_data, portfolio_history):
     return results_df
 
 def fetch_spy_data(start_date, end_date):
-    """Fetch S&P 500 Total Return data"""
+    """Fetch S&P 500 Total Return data (^SP500TR matches YCharts ^SPXTR)"""
     sp500tr = yf.Ticker('^SP500TR')
     data = sp500tr.history(start=start_date, end=end_date)
 
