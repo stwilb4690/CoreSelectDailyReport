@@ -45,7 +45,7 @@ def load_and_prepare_data():
             hist = stock.history(start=fetch_start)
             if not hist.empty:
                 hist = hist.reset_index()
-                hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None)
+                hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None).dt.normalize()
                 hist['Ticker'] = ticker
                 hist = hist[['Date', 'Ticker', 'Close']]
                 recent_data.append(hist)
@@ -159,7 +159,7 @@ def fetch_spy_data(start_date, end_date):
 
     if not data.empty:
         data = data.reset_index()
-        data['Date'] = pd.to_datetime(data['Date']).dt.tz_localize(None)
+        data['Date'] = pd.to_datetime(data['Date']).dt.tz_localize(None).dt.normalize()
         df = pd.DataFrame({
             'Date': data['Date'],
             'SPY_Close': data['Close']

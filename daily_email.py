@@ -45,7 +45,7 @@ def load_portfolio_history():
             hist = stock.history(start=start_date, end=tomorrow)
             if not hist.empty:
                 hist = hist.reset_index()
-                hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None)
+                hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None).dt.normalize()
                 hist['Ticker'] = ticker
                 price_list.append(hist[['Date', 'Ticker', 'Close']])
         except Exception as e:
@@ -207,7 +207,7 @@ def fetch_spy_data(start_date, end_date):
 
         if not hist.empty:
             hist = hist.reset_index()
-            hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None)
+            hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None).dt.normalize()
             df = pd.DataFrame({
                 'Date': hist['Date'],
                 'SPY_Close': hist['Close']

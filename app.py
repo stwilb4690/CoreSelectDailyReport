@@ -77,7 +77,7 @@ def fetch_recent_data(tickers, start_date):
                     'Ticker': ticker,
                     'Close': data['Close']
                 })
-                df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None)
+                df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None).dt.normalize()
                 all_data.append(df)
         except Exception as e:
             st.warning(f"Could not fetch recent data for {ticker}: {e}")
@@ -327,7 +327,7 @@ def fetch_spy_data(start_date, end_date):
         if not data.empty:
             # Reset index to avoid Date being both index and column
             data = data.reset_index()
-            data['Date'] = pd.to_datetime(data['Date']).dt.tz_localize(None)
+            data['Date'] = pd.to_datetime(data['Date']).dt.tz_localize(None).dt.normalize()
 
             # yfinance 'Close' is already adjusted for splits and dividends
             df = pd.DataFrame({
