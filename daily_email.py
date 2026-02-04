@@ -45,7 +45,7 @@ def load_portfolio_history():
             hist = stock.history(start=start_date, end=tomorrow)
             if not hist.empty:
                 hist = hist.reset_index()
-                hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None)
+                hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None).dt.normalize()
                 hist['Ticker'] = ticker
                 price_list.append(hist[['Date', 'Ticker', 'Close']])
         except Exception as e:
@@ -200,14 +200,14 @@ def fetch_daily_returns(tickers):
     return pd.DataFrame(returns_data)
 
 def fetch_spy_data(start_date, end_date):
-    """Fetch S&P 500 TR historical data"""
+    """Fetch S&P 500 Total Return historical data (^SP500TR matches YCharts ^SPXTR)"""
     try:
         sp500tr = yf.Ticker('^SP500TR')
         hist = sp500tr.history(start=start_date, end=end_date)
 
         if not hist.empty:
             hist = hist.reset_index()
-            hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None)
+            hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None).dt.normalize()
             df = pd.DataFrame({
                 'Date': hist['Date'],
                 'SPY_Close': hist['Close']
@@ -221,7 +221,7 @@ def fetch_spy_data(start_date, end_date):
         return pd.DataFrame()
 
 def fetch_spy_return():
-    """Fetch S&P 500 daily return"""
+    """Fetch S&P 500 Total Return daily return (^SP500TR matches YCharts ^SPXTR)"""
     try:
         sp500tr = yf.Ticker('^SP500TR')
         today = pd.Timestamp.now().normalize()
